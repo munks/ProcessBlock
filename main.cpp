@@ -1,42 +1,66 @@
 #include <time.h>
 #include <stdio.h>
 #include <windows.h>
+#include <TlHelp32.h>
 
-char* dir;
-int checkbool = 0;
+char *dir;
 
-#define c_YouTube 1
+#define WindowLoop(cls, pid) { HWND lt_tempHwnd = FindWindow(cls, NULL); \
+								while (lt_tempHwnd != NULL) { \
+									if (pid == GetProcessID(lt_tempHwnd)) { \
+										if (GetParent(lt_tempHwnd) == NULL)
+#define WindowLoopEnd() } lt_tempHwnd = GetWindow(lt_tempHwnd, GW_HWNDNEXT); }}
+#define WindowLoopHandle() lt_tempHwnd
+
+#define ProcessLoop { HANDLE lt_hProcess = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); \
+						PROCESSENTRY32 lt_pe32 = {0}; \
+						lt_pe32.dwSize = sizeof(PROCESSENTRY32); \
+						if(Process32First(lt_hProcess, &lt_pe32)) { \
+							while(Process32Next(lt_hProcess, &lt_pe32))
+#define ProcessLoopEnd() } CloseHandle(lt_hProcess); }
+#define ProcessLoopName() lt_pe32.szExeFile
+#define ProcessLoopID() lt_pe32.th32ProcessID
+
+ULONG GetProcessID (HWND lp_hwnd) {
+	ULONG lv_idProc;
+	GetWindowThreadProcessId(lp_hwnd, &lv_idProc);
+	return lv_idProc;
+}
 
 void CheckWindow (const char* cls, const char* cap) {
 	HWND hw = FindWindow(cls, cap);
-	char p[260];
-	
+	char p[MAX_PATH];
+
 	if (hw) {
 		sprintf(p,"%d", hw);
-		printf("%d\n", ShellExecute(NULL, "runas", "Terminator.exe", p, dir, SW_SHOW));
+		ShellExecute(NULL, "runas", "Terminator.exe", p, dir, SW_SHOW);
 		while (IsWindow(hw)) {
 			Sleep(1);
 		}
 	}
 }
-void CheckWindowBrowser (const char* cls, const char* cap, int idtf) {
-	HWND hw = FindWindow(cls, NULL);
-	char p[260];
-	char txt[260];
+void CheckWindowBrowser (const char* cls, const char* cap) {
+	HWND hw;
+	char p[MAX_PATH];
+	char txt[MAX_PATH];
 	
-	if (checkbool & (1 << (idtf - 1))) {
-		return;
-	}
-	if (hw) {
-		GetWindowText(hw, txt, 260);
-		if (strstr(txt, cap) != NULL) {
-			sprintf(p,"%d %d", hw, idtf);
-			printf("%d\n", ShellExecute(NULL, "runas", "Terminator.exe", p, dir, SW_SHOW));
-			while (IsWindow(hw)) {
-				Sleep(1);
-			}
+	ProcessLoop {
+		if (strcmp(ProcessLoopName(), "chrome.exe") == 0) {
+			WindowLoop(cls, ProcessLoopID()) {
+				hw = WindowLoopHandle();
+				if (hw) {
+					GetWindowText(hw, txt, MAX_PATH);
+					if (strstr(txt, cap) != NULL) {
+						sprintf(p,"%d", hw);
+						ShellExecute(NULL, "runas", "Terminator.exe", p, dir, SW_SHOW);
+						while (IsWindow(hw)) {
+							Sleep(1);
+						}
+					}
+				}
+			} WindowLoopEnd();
 		}
-	}
+	} ProcessLoopEnd();
 }
 
 bool BlockTime (int start, int end) {
@@ -57,49 +81,17 @@ bool BlockTime (int start, int end) {
 	return false;
 }
 
-DWORD WINAPI CheckLoop (LPVOID param) {
+int main (int argc, char* argv[]) {
+	*strrchr(argv[0], '\\') = '\0';
+	dir = argv[0];
+
 	while (1) {
-		if (BlockTime(22, 2)) {
+		if (BlockTime(21, 2)) {
 			CheckWindow("WINDOWSCLIENT", "Roblox");
 			CheckWindow("UnrealWindow", "VALORANT  ");
-			CheckWindowBrowser("Chrome_WidgetWin_1", "YouTube", c_YouTube);
+			CheckWindowBrowser("Chrome_WidgetWin_1", "YouTube");
 		}
 		Sleep(1);
-	}
-	return 0;
-}
-
-LRESULT CALLBACK WindowProc (HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	unsigned int ltemp = (unsigned int)lParam;
-	switch (uMsg) {
-		case WM_COMMAND: {
-			if (ltemp > 0) {
-				checkbool |= 1 << (ltemp - 1);
-			}
-			break;
-		}
-	}
-	return DefWindowProc(hwnd, uMsg, wParam, lParam);
-}
-int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR pCmdLine, int nCmdShow) {
-	dir = pCmdLine;
-
-	WNDCLASSEX wc = {};
-
-	wc.cbSize = sizeof(wc);
-	wc.lpfnWndProc = WindowProc;
-	wc.hInstance = hInstance;
-	wc.lpszClassName = "Terminator";
-	
-	RegisterClassEx(&wc);
-
-	CreateWindow("Terminator", "ASDF", 0, 0, 0, 0, 0, NULL, NULL, hInstance, NULL);
-	CreateThread(NULL, 0, CheckLoop, NULL, 0, NULL);
-
-	MSG msg = {};
-	while (GetMessage(&msg, NULL, 0, 0) > 0) {
-		TranslateMessage(&msg);
-		DispatchMessage(&msg);
 	}
 	return 0;
 }
