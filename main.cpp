@@ -91,7 +91,7 @@ int main (int argc, char* argv[]) {
 			CheckWindow("UnrealWindow", "VALORANT  ");
 			CheckWindowBrowser("Chrome_WidgetWin_1", "YouTube");
 		}
-		Sleep(1);
+		Sleep(500);
 	}
 	return 0;
 }
